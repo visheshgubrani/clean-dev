@@ -1,4 +1,4 @@
 interface:
   display_name: "Clean Dev"
-  short_description: "Approved phases, simple code, recorded decisions"
-  default_prompt: "Use $clean-dev to plan this application in small phases, record the important choices, and ask for my input before implementing the first phase."
+  short_description: "Approved phases, executable task cards, separate logs, lean code"
+  default_prompt: "Use $clean-dev to plan this application: write the roadmap and the first phase as task cards, and ask for my approval before anything is built."
