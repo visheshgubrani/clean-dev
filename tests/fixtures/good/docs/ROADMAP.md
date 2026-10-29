@@ -8,7 +8,8 @@ Not doing: accounts, sync, notifications.
 | ID | Phase | Status | Plan |
 | --- | --- | --- | --- |
 | P01 | Habit logging | approved | [plan](plans/P01-habit-logging.md) |
-| P02 | Streak calendar | planned | — |
+| P02 | Streak calendar | approved | [plan](plans/P02-streak-calendar.md) |
+| P03 | Daily reminders | planned | — |
 
 ## Backlog
 - CSV export (user, 2026-10-26)

@@ -4,6 +4,7 @@
 Usage: python3 check_docs.py [project_root]
 Prints ERROR/WARN lines and a phase summary. Exits 1 if there are errors.
 Formats are defined in references/templates.md. docs/archive/ is ignored.
+Plans with 'Format: 3' get v3 checks; unmarked plans keep the v2 checks.
 """
 from __future__ import annotations
 
@@ -18,6 +19,9 @@ ALL_TASKS_DONE = {"built", "done"}
 COMMON_SECTIONS = ["Goal", "Builder context", "Tasks", "Acceptance", "Changes"]
 KIND_SECTIONS = {"feature": ["Spec"], "fix": ["Bug", "Cause"]}
 CARD_FIELDS = ["Files:", "Do:", "Check:"]
+V3_SECTIONS = ["Goal", "Requirements", "Tasks", "Acceptance"]
+V3_KIND_SECTIONS = {"feature": [], "fix": ["Bug"]}
+V3_PLAN_LINES = 250
 LOG_HEADINGS = re.compile(r"^(Baseline|Ready for review|Review \d+|Outcome)\b")
 DASH = r"\s*[·|—–-]\s*"
 
@@ -25,7 +29,7 @@ PLAN_NAME = re.compile(r"^(P\d{2,3})-[a-z0-9]+(?:-[a-z0-9]+)*\.md$")
 ROW = re.compile(r"^\|\s*(P[^|]*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$")
 CHECKLIST = re.compile(r"^- \[([ xX])\] (P\d{2,3}-T\d{2})\s+(.+)$")
 CARD = re.compile(r"^### (P\d{2,3}-T\d{2})\s+(.+)$")
-LOG_TASK = re.compile(rf"^## (P\d{{2,3}}-T\d{{2}}){DASH}(done|blocked|unblocked){DASH}\d{{4}}-\d{{2}}-\d{{2}}\s*$")
+LOG_TASK = re.compile(rf"^## (P\d{{2,3}}-T\d{{2}}){DASH}(done|blocked|unblocked|cleared){DASH}\d{{4}}-\d{{2}}-\d{{2}}\s*$")
 APPROVED_GROUP = re.compile(r"^(\d{4}-\d{2}-\d{2})\s+(.+)$")
 TASK_RANGE = re.compile(r"^T(\d{2})(?:\s*[–-]\s*T(\d{2}))?$")
 PATH_LINE = re.compile(r"\b[\w./-]+\.(?:ts|tsx|js|jsx|mjs|py|go|rs|rb|java|kt|swift|css|sql|vue|svelte):\d+\b")
@@ -168,6 +172,10 @@ def check_plan(path: Path, r: Report) -> Plan | None:
     lines = read_lines(path)
     if not lines or not re.match(rf"^# {pid}\s+\S", lines[0]):
         r.err(path, f"first line must be '# {pid} <title>'")
+    fmt = header_value(lines, "Format")
+    if fmt not in (None, "3"):
+        r.err(path, f"unknown 'Format: {fmt}' (use 'Format: 3', or omit it for a v2 plan)")
+    v3 = fmt == "3"
     kind = header_value(lines, "Kind")
     if kind not in KIND_SECTIONS:
         r.err(path, "needs 'Kind: feature' or 'Kind: fix'")
@@ -181,15 +189,44 @@ def check_plan(path: Path, r: Report) -> Plan | None:
             r.err(path, f"Approved: {parsed}")
         else:
             approved = parsed
+    if v3:
+        if header_value(lines, "Depends on") is None:
+            r.err(path, "needs a 'Depends on:' line")
+        if header_value(lines, "Touches") is None:
+            r.warn(path, "add a 'Touches:' line naming the area this phase expects to change")
+        if len(lines) > V3_PLAN_LINES:
+            r.warn(path, f"{len(lines)} lines; keep plans near 200 by stating seams and outcomes, not implementation")
     found = sections(lines)
-    for section in COMMON_SECTIONS + KIND_SECTIONS.get(kind or "", []):
+    if v3:
+        required = V3_SECTIONS + V3_KIND_SECTIONS.get(kind or "", [])
+    else:
+        required = COMMON_SECTIONS + KIND_SECTIONS.get(kind or "", [])
+    for section in required:
         if section not in found:
             r.err(path, f"missing section '## {section}'")
 
+    check_tasks = v3_tasks if v3 else v2_tasks
+    tasks = check_tasks(pid, path, found.get("Tasks", []), r)
+    if approved is not None:
+        for tid, checked in tasks.items():
+            number = int(tid.split("-T")[1])
+            if checked and number not in approved:
+                r.err(path, f"{tid} is checked but outside the Approved: range")
+
+    for line in lines:
+        if PATH_LINE.search(line):
+            r.warn(path, f"line-number reference goes stale: '{line.strip()[:60]}'")
+        if BANNED_HEADING.match(line) or LETTERED.match(line):
+            r.warn(path, f"use tasks (PNN-TNN), not sub-units or lettered phases: '{line.strip()[:60]}'")
+    return Plan(pid, path, approved, tasks)
+
+
+def v2_tasks(pid: str, path: Path, body: list[str], r: Report) -> dict[str, bool]:
+    """A checklist plus one card per task, each card with Files:, Do: and Check:."""
     tasks: dict[str, bool] = {}
     cards: dict[str, list[str]] = {}
     current: str | None = None
-    for line in found.get("Tasks", []):
+    for line in body:
         item = CHECKLIST.match(line)
         card = CARD.match(line)
         if item:
@@ -215,25 +252,44 @@ def check_plan(path: Path, r: Report) -> Plan | None:
         r.err(path, f"{tid} is in the checklist but has no card")
     for tid in cards.keys() - tasks.keys():
         r.err(path, f"{tid} has a card but no checklist item")
-    for tid, body in cards.items():
+    for tid, lines in cards.items():
         for label in CARD_FIELDS:
-            if not any(line.startswith(label) for line in body):
+            if not any(line.startswith(label) for line in lines):
                 r.err(path, f"{tid} card is missing '{label}'")
-        files = card_files(body)
+        files = card_files(lines)
         if len(files) > 5:
             r.warn(path, f"{tid} lists {len(files)} source files; keep cards to 5")
-    if approved is not None:
-        for tid, checked in tasks.items():
-            number = int(tid.split("-T")[1])
-            if checked and number not in approved:
-                r.err(path, f"{tid} is checked but outside the Approved: range")
+    return tasks
 
-    for line in lines:
-        if PATH_LINE.search(line):
-            r.warn(path, f"line-number reference goes stale: '{line.strip()[:60]}'")
-        if BANNED_HEADING.match(line) or LETTERED.match(line):
-            r.warn(path, f"use tasks (PNN-TNN), not sub-units or lettered phases: '{line.strip()[:60]}'")
-    return Plan(pid, path, approved, tasks)
+
+def v3_tasks(pid: str, path: Path, body: list[str], r: Report) -> dict[str, bool]:
+    """One checklist; each item carries indented fields, and 'Done when:' is required."""
+    tasks: dict[str, bool] = {}
+    fields: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in body:
+        item = CHECKLIST.match(line)
+        if item:
+            current = item.group(2)
+            if current in tasks:
+                r.err(path, f"duplicate task {current}")
+            tasks[current] = item.group(1) != " "
+            fields.setdefault(current, [])
+        elif CARD.match(line):
+            current = None
+            r.warn(path, f"v3 plans have no task cards; indent fields under the checklist item: '{line[:60]}'")
+        elif current and line[:1] in (" ", "\t"):
+            fields[current].append(line.strip())
+        elif line.strip():
+            current = None
+
+    for tid in tasks:
+        if not tid.startswith(pid + "-"):
+            r.err(path, f"task {tid} does not belong to {pid}")
+    for tid, lines in fields.items():
+        if not any(line.startswith("Done when:") for line in lines):
+            r.err(path, f"{tid} needs an indented 'Done when:' line")
+    return tasks
 
 
 def card_files(body: list[str]) -> list[str]:

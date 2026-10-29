@@ -18,11 +18,17 @@ One owner per concern. Reuse it; never create a second. The planner adds new own
 - Database queries: `src/db/queries.ts`
 - Dates/time: `src/dates.ts`
 
+## Patterns
+Copy the shape of these files; extend them instead of starting a parallel style.
+- Route: `src/routes.ts` `POST /habits/:id/checkins` (parse input, call one query, map the result)
+- Query: `src/db/queries.ts` `checkIn` (one function per operation, typed result)
+- Test: `tests/queries.test.ts` (behavior at the public function, fresh database per test)
+
 ## Rules
 - Never hand-edit an applied migration; add a new one.
 - Invariants: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#invariants).
 
 ## Workflow
 Use the clean-dev skill. Status: [docs/ROADMAP.md](docs/ROADMAP.md). Plans: `docs/plans/`. Notes: `docs/logs/`. Decisions: [docs/DECISIONS.md](docs/DECISIONS.md).
-- Build one approved task at a time; change only the files its card lists; commit as `P07-T03 <task title>`.
+- Build approved tasks in order within the phase's scope; commit each as `P07-T03 <task title>`.
 - Never write status or progress in this file.

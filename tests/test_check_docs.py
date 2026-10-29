@@ -1,6 +1,7 @@
 """Tests for skills/clean-dev/scripts/check_docs.py.
 
 Each case copies the good fixture, applies one mutation, and expects one message.
+The good fixture mixes formats: P01 is a v2 plan, P02 a v3 plan ('Format: 3').
 Run: python3 -m unittest discover -s tests
 """
 import shutil
@@ -16,6 +17,8 @@ import check_docs  # noqa: E402
 GOOD = REPO / "tests" / "fixtures" / "good"
 PLAN = "docs/plans/P01-habit-logging.md"
 LOG = "docs/logs/P01-habit-logging.md"
+PLAN3 = "docs/plans/P02-streak-calendar.md"
+LOG3 = "docs/logs/P02-streak-calendar.md"
 ROADMAP = "docs/ROADMAP.md"
 
 
@@ -50,7 +53,7 @@ class CheckDocsTest(unittest.TestCase):
         report = check_docs.lint(self.root)
         self.assertEqual(report.errors, [])
         self.assertEqual(report.warnings, [])
-        self.assertEqual(report.summary, ["P01 approved 1/3 tasks", "P02 planned"])
+        self.assertEqual(report.summary, ["P01 approved 1/3 tasks", "P02 approved 1/3 tasks", "P03 planned"])
 
     def test_missing_agents(self):
         (self.root / "AGENTS.md").unlink()
@@ -152,8 +155,71 @@ class CheckDocsTest(unittest.TestCase):
         archive = self.root / "docs/archive/phases"
         archive.mkdir(parents=True)
         (archive / "02-streaks.md").write_text("# old\n")
-        self.replace(ROADMAP, "| P02 | Streak calendar | planned | — |", "| P02 | Streak calendar | done | [plan](archive/phases/02-streaks.md) |")
+        self.replace(ROADMAP, "| P03 | Daily reminders | planned | — |", "| P03 | Daily reminders | done | [plan](archive/phases/02-streaks.md) |")
         self.assertEqual(check_docs.lint(self.root).errors, [])
+
+    def test_v3_task_without_done_when(self):
+        self.replace(PLAN3, "  Done when: the contract and C3 hold in route tests.\n", "")
+        self.assertError("P02-T02 needs an indented 'Done when:' line")
+
+    def test_v3_duplicate_task(self):
+        self.replace(PLAN3, "\n## Acceptance", "- [ ] P02-T02 Serve it again\n  Done when: x\n\n## Acceptance")
+        self.assertError("duplicate task P02-T02")
+
+    def test_v3_task_from_another_phase(self):
+        self.replace(PLAN3, "- [ ] P02-T03", "- [ ] P01-T03")
+        self.assertError("task P01-T03 does not belong to P02")
+
+    def test_v3_checked_outside_approved_range(self):
+        self.replace(PLAN3, "Approved: 2026-10-27 all", "Approved: 2026-10-27 T01")
+        self.replace(PLAN3, "- [ ] P02-T02", "- [x] P02-T02")
+        self.assertError("P02-T02 is checked but outside the Approved: range")
+
+    def test_v3_missing_requirements(self):
+        self.replace(PLAN3, "## Requirements\n", "")
+        self.assertError("P02-streak-calendar.md: missing section '## Requirements'")
+
+    def test_v3_fix_needs_bug_section(self):
+        self.replace(PLAN3, "Kind: feature", "Kind: fix")
+        self.assertError("missing section '## Bug'")
+
+    def test_v3_needs_depends_on(self):
+        self.replace(PLAN3, "Depends on: P01\n", "")
+        self.assertError("needs a 'Depends on:' line")
+
+    def test_v3_missing_touches_warning(self):
+        self.replace(PLAN3, "Touches: `src/streaks.ts` (new), `src/routes.ts`, `src/views/`\n", "")
+        self.assertWarning("add a 'Touches:' line")
+
+    def test_v3_card_heading_warning(self):
+        self.replace(PLAN3, "\n## Acceptance", "\n### P02-T03 Show the calendar on the habit page\nFiles: x\n\n## Acceptance")
+        self.assertWarning("v3 plans have no task cards")
+
+    def test_v3_oversized_plan_warning(self):
+        self.append(PLAN3, "".join(f"- note {n}\n" for n in range(220)))
+        self.assertWarning("keep plans near 200")
+
+    def test_unknown_format(self):
+        self.replace(PLAN3, "Format: 3", "Format: 4")
+        self.assertError("unknown 'Format: 4'")
+
+    def test_unmarked_plan_keeps_v2_rules(self):
+        self.replace(PLAN3, "Format: 3\n", "")
+        self.assertError("P02-T01 is in the checklist but has no card")
+
+    def test_cleared_log_entry(self):
+        self.append(LOG3, "\n## P02-T02 · cleared · 2026-10-28\nNotes: route shape reviewed\n")
+        report = check_docs.lint(self.root)
+        self.assertEqual(report.errors, [])
+        self.assertEqual(report.warnings, [])
+
+    def test_cleared_entry_for_unknown_task(self):
+        self.append(LOG3, "\n## P02-T09 · cleared · 2026-10-28\n")
+        self.assertError("entry for unknown task P02-T09")
+
+    def test_v3_checked_task_without_log_entry(self):
+        self.replace(PLAN3, "- [ ] P02-T02", "- [x] P02-T02")
+        self.assertWarning("P02-T02 is checked but has no 'done' entry")
 
     def test_exit_code(self):
         self.assertEqual(check_docs.main(["x", str(self.root)]), 0)

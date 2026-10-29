@@ -1,6 +1,6 @@
 # Record templates
 
-These formats are parsed by `scripts/check_docs.py`. Keep the headings, field names, and ID shapes exactly as shown.
+`scripts/check_docs.py` parses these formats. Keep the headings, field names, and ID shapes exactly as shown.
 
 ## How to fill them in
 
@@ -28,7 +28,7 @@ Stack: <language, framework, database, key services>.
 - Commits: per-task
 
 ## Where things live
-One owner per concern. Reuse it; never create a second. The planner adds new owners here.
+One owner per concern. Search here before adding shared code; never create a second.
 - Config/env: `<path>`
 - Logging: `<path>`
 - Errors: `<path>`
@@ -38,17 +38,26 @@ One owner per concern. Reuse it; never create a second. The planner adds new own
 - Validation schemas: `<path>`
 - Shared contracts/types: `<path>`
 
+## Patterns
+Copy the shape of these files; extend them instead of starting a parallel style.
+- Route: `<path>` (<what to copy, e.g. parse with its schema, call one service, map the result>)
+- Service: `<path>` (<…>)
+- Schema change: `<path>` (<…>)
+- Test: `<path>` (<…>)
+
 ## Rules
 - <Project hard rule, one line, e.g. "Never hand-edit an applied migration; add a new one.">
 - Invariants: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#invariants).
 
 ## Workflow
 Use the clean-dev skill. Status: [docs/ROADMAP.md](docs/ROADMAP.md). Plans: `docs/plans/`. Notes: `docs/logs/`. Decisions: [docs/DECISIONS.md](docs/DECISIONS.md).
-- Build one approved task at a time; change only the files its card lists; commit as `P07-T03 <task title>`.
+- Build approved tasks in order within the phase's scope; commit each as `P07-T03 <task title>`.
 - Never write status or progress in this file.
 ```
 
-`Commits:` is `per-task` (the default) or `off` (when the user commits manually). Remove any concern from "Where things live" that the app doesn't have yet.
+- `Commits:` is `per-task` (the default) or `off` (when the user commits manually).
+- Remove any concern from "Where things live" that the app doesn't have yet.
+- Add a Patterns line only when a good exemplar exists.
 
 ## docs/ROADMAP.md
 
@@ -68,6 +77,9 @@ Not doing: <product-level exclusions>
 | P02 | Email alerts | approved | [plan](plans/P02-email-alerts.md) |
 | P03 | Lead tracking | planned | — |
 
+Outlines:
+- **P03** <outcome in one line>. Depends on: P02. Risk: <the main unknown, or none>.
+
 ## Backlog
 - <idea, request, or bug not yet in a phase> (<source>, <YYYY-MM-DD>)
 ```
@@ -79,11 +91,12 @@ Not doing: <product-level exclusions>
   - `built`: all tasks done, review passed, and Auto acceptance green
   - `done`: manual checks passed, or the user waived them
   - `dropped`: abandoned; give the reason in the Phase cell
+- **Outlines** stay at 1–3 lines until a phase is next in its track.
 - **Large apps:** group rows under `### <Milestone>` headings inside `## Phases`, with one table per milestone.
 
 ## docs/ARCHITECTURE.md
 
-This file describes the code as built. Planned design lives in plans until it ships.
+This file describes the code as built. Planned design lives in plans, or in TARGET-ARCHITECTURE, until it ships.
 
 ```markdown
 # Architecture
@@ -111,6 +124,22 @@ Data flow: <entry point> → <module> → <module> → <storage or external serv
 
 Before the first phase ships, add `Status: planned` under the title, and remove it when P01 closes.
 
+## docs/TARGET-ARCHITECTURE.md (optional)
+
+Use this only when a milestone needs a design that spans several phases. When a phase ships, its part moves into ARCHITECTURE and leaves this file.
+
+```markdown
+# Target architecture
+
+Status: proposed for P17–P21. Reasons: D014–D016.
+
+## Components
+<The parts after the milestone, how they talk, and which phase builds each.>
+
+## Contracts between components
+<Shapes other phases depend on, at the level of messages and APIs, not code.>
+```
+
 ## docs/DECISIONS.md
 
 Record only choices a future planner might undo without knowing why. Each entry is 8 lines or fewer.
@@ -133,14 +162,16 @@ Consequence: <tradeoff or limit future work must respect>
 
 ## docs/plans/PNN-slug.md (feature)
 
-The filename is the phase ID plus a kebab-case slug, and the heading repeats the same ID.
+The filename is the phase ID plus a kebab-case slug, and the heading repeats the same ID. `Format: 3` marks this version. Aim for about 200 lines or fewer.
 
 ```markdown
 # P02 Email alerts
 
+Format: 3
 Kind: feature
 Approved: pending
 Depends on: P01
+Touches: `src/mail/`, `src/db/schema/` (migration)
 
 ## Goal
 <User-visible outcome in 1–3 sentences.>
@@ -148,57 +179,36 @@ Depends on: P01
 In: <included work>
 Out: <excluded work that someone might reasonably expect>
 
-## Spec
-C1. <Behavior or rule, stated so a test can check it.>
-C2. <Contract, written as code:>
+## Requirements
+C1. <Observable behavior, stated so a test can check it.>
+C2. <Failure case: what happens on timeout / duplicate / invalid input, and the state left behind.>
 
-    type TriageResult = { messageId: string; label: "important" | "ignore"; reason: string }
-    function classify(message: CleanMessage): Promise<TriageResult>
+## Design
+<Only the seams this phase changes, written as code.>
 
-C3. <Failure case: what happens on timeout / duplicate / invalid input.>
+    POST /alerts/rules → 201 { id: string } | 400 { error: "invalid_rule" }
+    alert_rule(id uuid pk, user_id uuid not null, pattern text not null, created_at timestamptz)
+
+Owners: <new or extended owner modules, one line each>
 
 ### Choices
 | Question | Decision | Why |
 | --- | --- | --- |
-| <design question> | <decision> | <reason> |
+| <consequential design question> | <decision> | <reason> |
 
-## Builder context
-Read first: `<path>`, `<path>`
-Reuse:
-- `createLogger` — `src/logger.ts` — structured logs
-- `<symbol>` — `<path>` — <what for>
-Rules that apply:
-- <Full text of each relevant invariant or decision, with its ID, e.g. "I03 Email content is untrusted; never send raw HTML to the model.">
-Test one file: `<command>`
+## Context
+Read: I03 (email content is untrusted), D004.
+Reuse: `<existing symbol>` — `<path>` — <what for>
 
 ## Tasks
-- [ ] P02-T01 Add triage table
+- [ ] P02-T01 Add alert rules
+  Done when: C1 holds for create and list, with the migration applied and tests for invalid rules.
 - [ ] P02-T02 Classify new messages
-
-### P02-T01 Add triage table
-Implements: C1
-Files:
-- `src/db/schema/triage.ts` (new)
-- `src/db/schema/index.ts` (edit: export the new table)
-- `drizzle/0007_triage.sql` (generated)
-Do:
-1. <Concrete step naming the symbol to add or change.>
-2. Run `<generate command>` and keep the generated migration as is.
-Test: `tests/db/triage.test.ts` (new)
-- <input or action> → <expected result>
-- <edge case> → <expected result>
-Check: `<command that runs this task's tests>`
-Avoid: <tempting wrong move, e.g. "Do not add an index; no query needs one yet.">
-
-### P02-T02 Classify new messages
-Implements: C2, C3
-Files:
-- `src/mail/classify.ts` (new)
-Do:
-1. <step>
-Test: `src/mail/classify.test.ts` (new)
-- <case> → <expected>
-Check: `<command>`
+  Done when: C2 and C3 hold; classification runs on every new message, with failures tested.
+  Checkpoint: first use of the model client; review its error handling before alerts build on it.
+- [ ] P02-T03 Send alerts
+  Done when: a matching message sends one alert; duplicates send none.
+  Check: `<command>`
 
 ## Acceptance
 Auto:
@@ -210,27 +220,31 @@ Manual:
 - none
 ```
 
-- **Cards:**
-  - Every card needs `Files:`, `Do:`, and `Check:`.
-  - `Test:` is required unless the task changes no behavior.
-  - `Implements:` and `Avoid:` are optional.
-- **Unknowns:** prefix the task title with `Spike:` and order spikes first. A spike records its finding in the log and changes no product code unless the card says so.
-- **Run-only tasks:** a task that only runs something (a migration, a data job, a deploy) uses `Files: none (run-only)` and adds `Output: <what to record in the log>`.
-- **Generated files:** mark them `(generated)` in `Files:`. They don't count toward the size limit.
+- **Required:** the header lines `Format`, `Kind`, `Approved`, and `Depends on`, and the sections Goal, Requirements, Tasks, and Acceptance.
+- **Design** is required when the phase changes a public contract, a persisted format, or the architecture.
+- **Touches**, **Context**, and **Changes** are optional; the Docs check warns when `Touches:` is missing.
+- **Tasks:**
+  - Each checklist item needs an indented `Done when:`.
+  - `Check:`, `Checkpoint:`, and `Avoid:` are optional.
+  - There are no separate task cards.
+- **Unknowns:** prefix the task title with `Spike:` and order spikes first. A spike records its finding in the log and changes no product code unless its `Done when:` says so.
+- **Run-only tasks** (a migration, a data job, a deploy) say in `Done when:` what to record in the log.
 - **The `Approved:` line** takes three forms:
   - `Approved: pending`
   - `Approved: 2026-10-26 all`
   - `Approved: 2026-10-26 T01–T04; 2026-10-27 T05` (ranges and single tasks, separated by `;` or `,`)
-- **`Changes`:** after approval, the planner edits the plan in place and adds one dated line here per edit, e.g. `- 2026-10-27: C3 now rejects unknown fields; added P02-T05 (review 1).`
+- **`Changes`:** after approval, the planner edits the plan in place and adds one dated line per edit, e.g. `- 2026-10-27: C3 now rejects unknown fields; added P02-T05 (review 1).`
 
 ## docs/plans/PNN-slug.md (fix)
 
 ```markdown
 # P09 Upload finalization fix
 
+Format: 3
 Kind: fix
 Approved: pending
 Depends on: none
+Touches: `src/uploads/`
 
 ## Goal
 <What works after the fix, in 1–2 sentences.>
@@ -241,47 +255,27 @@ Repro:
 2. <minimal step>
 Expected: <behavior>
 Actual: <behavior and the error text, without secrets>
+Cause: `<path>` `<symbol>` — <what goes wrong and the evidence>
+<or> Cause: unknown — diagnose within `<area>`; collect <evidence>.
 
-## Cause
-`<path>` `<symbol>` — <what goes wrong and the evidence that shows it>
-
-## Builder context
-Read first: `<path>`
-Test one file: `<command>`
+## Requirements
+C1. <The repro now gives the expected behavior.>
+C2. <Any related case that must keep working.>
 
 ## Tasks
-- [ ] P09-T01 Add failing regression test for early close
-- [ ] P09-T02 Await admission before closing the uploader
-
-### P09-T01 Add failing regression test for early close
-Files:
-- `<test path>` (edit)
-Do:
-1. Add a test that reproduces the bug through <entry point>.
-Test: `<test path>`
-- <repro input> → <expected behavior> (fails before P09-T02)
-Check: `<command>` → the new test fails for the reason in Cause
-
-### P09-T02 Await admission before closing the uploader
-Files:
-- `<path>` (edit)
-Do:
-1. <step>
-Check: `<command>` → all tests pass, including the new one
+- [ ] P09-T01 Await admission before closing the uploader
+  Done when: a regression test reproduces the bug through <entry point>, fails before the fix, and passes after it; C2 still holds.
 
 ## Acceptance
 Auto:
 - `<command>` → pass
 Manual:
 - <repro steps from Bug> → <expected behavior>
-
-## Changes
-- none
 ```
 
 ## docs/logs/PNN-slug.md
 
-The log has the same filename as its plan. It is append-only: only the builder adds task entries, and only the planner adds Review, Outcome, and `unblocked` entries. Each entry is 8 lines or fewer.
+The log has the same filename as its plan. It is append-only. The builder adds the Baseline, task, blocked, and Ready for review entries. The planner adds unblocked, cleared, Review, and Outcome entries. Each entry is 8 lines or fewer.
 
 ```markdown
 # P02 log
@@ -291,15 +285,25 @@ Full check: `<command>` → pass
 Pre-existing failures: none
 
 ## P02-T01 · done · 2026-10-26
-Changed: `src/db/schema/triage.ts`, `src/db/schema/index.ts`, `tests/db/triage.test.ts`
+Changed: `src/db/schema/alerts.ts`, `src/alerts/rules.ts`, `tests/alerts.test.ts`, `docs/ARCHITECTURE.md`
 Check: `<command>` → pass
+Choices: rules are validated in the existing schema module, not a new one
 Notes: none
 
-## P02-T02 · blocked · 2026-10-26
-Question: <what the plan does not answer, or how it differs from the code>
+## P02-T02 · done · 2026-10-26
+Changed: `src/mail/classify.ts`, `src/mail/classify.test.ts`
+Check: `<command>` → pass
+Choices: none
+Notes: none
+
+## P02-T02 · cleared · 2026-10-26
+Notes: reviewed model-client error handling; no plan changes
+
+## P02-T03 · blocked · 2026-10-27
+Question: <what would have to change in the approved design, and why>
 Options: A) <option> B) <option>. Recommend A because <reason>.
 
-## P02-T02 · unblocked · 2026-10-27
+## P02-T03 · unblocked · 2026-10-27
 Resolution: <what the planner changed; see the plan's Changes>
 
 ## Ready for review · 2026-10-27
@@ -328,3 +332,7 @@ Repair: <what was done, linking the fix phase>
 Verification: <how recovery was confirmed>
 Prevention: <phase or backlog item that stops a repeat>
 ```
+
+## v2 plans
+
+Plans without a `Format:` line are v2: a `Spec` section, `Builder context`, a checklist, and one `### PNN-TNN` card per task with `Files:`, `Do:`, and `Check:`. The Docs check still validates them, and builders follow them as building.md "v2 plans" describes. Write new plans in v3.

@@ -1,19 +1,21 @@
 ---
 name: clean-dev
-description: "Plan, build, and review applications in small approved phases: frozen plans made of executable task cards, execution notes kept in separate logs, one roadmap holding status, and lean code. Use when starting or continuing an app, planning a phase or bug fix, implementing an approved plan task by task, reviewing a built phase, or adopting this workflow in an existing repo. Designed for a strong model that plans and reviews and a cheaper model that builds."
+description: "Plan, build, and review applications in small approved phases. A strong model writes the project foundations once (commands, owners, patterns, architecture, decisions), plans one phase at a time as requirements, seams, and outcome tasks, and reviews the result; a cheaper model reads the code, chooses the implementation, writes the tests, and keeps factual docs current. Use when starting or continuing an app, planning a phase or a bug fix, building an approved phase, reviewing or closing a phase, or adopting or upgrading this workflow in an existing repo."
 ---
 
 # Clean Dev
 
+The planner decides what must hold. The builder decides how. A plan settles behavior and boundaries; new private helpers, internal signatures, file lists, and coding steps belong to the builder.
+
 ## Pick the mode
 
-| The user asks to… | Mode | Also read |
+| The user asks to… | Mode | Read |
 | --- | --- | --- |
-| plan, design, propose the next phase, start an app, plan a fix | Plan | [planning.md](references/planning.md), [templates.md](references/templates.md), [lean-code.md](references/lean-code.md) |
-| build, implement, execute, or continue a phase or tasks | Build | nothing else; follow this file |
-| review a phase or check a build | Review | [planning.md](references/planning.md) (Review gate), [lean-code.md](references/lean-code.md) |
-| adopt this workflow, migrate old docs, upgrade from v1 | Adopt | [adopt.md](references/adopt.md), [templates.md](references/templates.md) |
-| make one small, specific change | Direct | "Direct changes" below |
+| start an app, plan or design a phase, plan a fix | Plan | [planning.md](references/planning.md), [templates.md](references/templates.md), [plan-example.md](references/plan-example.md) |
+| build, implement, execute, or continue a phase or tasks | Build | [building.md](references/building.md) |
+| review a phase, clear a checkpoint, answer a blocked task, close a phase | Review | [planning.md](references/planning.md), [lean-code.md](references/lean-code.md) |
+| adopt this workflow, or upgrade from v1 or v2 | Adopt | [adopt.md](references/adopt.md), [templates.md](references/templates.md) |
+| make one small, clear change | Direct | "Direct changes" below |
 
 If a build request names a phase with no approved tasks left, say so and stop. Never infer approval.
 
@@ -21,89 +23,47 @@ If a build request names a phase with no approved tasks left, say so and stop. N
 
 | File | Holds | Who edits |
 | --- | --- | --- |
-| `AGENTS.md` | App summary, commands, where things live, hard rules. Max 80 lines. Never status. | planner |
-| `docs/ROADMAP.md` | Goal, phase table (**the only place for status**), backlog | planner |
-| `docs/ARCHITECTURE.md` | As-built modules, data flow, invariants `I01…`, boundaries | planner |
+| `AGENTS.md` | App summary, commands, owners ("Where things live"), Patterns, hard rules. Max 80 lines. Never status. | planner; builder keeps commands and owners current |
+| `docs/ARCHITECTURE.md` | As-built modules, data flow, invariants `I01…`, boundaries | planner; builder keeps module rows current |
 | `docs/DECISIONS.md` | Lasting choices `D001…`, max 8 lines each | planner |
-| `docs/plans/P07-slug.md` | The plan: goal, spec, task cards, acceptance | planner; the builder only ticks boxes |
-| `docs/logs/P07-slug.md` | Append-only execution notes: baseline, task entries, reviews, outcome | builder and planner |
+| `docs/ROADMAP.md` | Goal, phase table (**the only place for status**), phase outlines, backlog | planner |
+| `docs/plans/P07-slug.md` | Goal, requirements, design at the seams, tasks, acceptance | planner; the builder only ticks boxes |
+| `docs/logs/P07-slug.md` | Append-only: baseline, task entries, blocks, checkpoints, reviews, outcome | builder and planner |
+
+The first four are the foundation. They are written once, kept current, and cited by plans instead of copied into them. A milestone whose design spans several phases may add `docs/TARGET-ARCHITECTURE.md`.
+
+**Patterns** is a short AGENTS.md section naming one exemplar file per kind of change ("New route: copy the shape of `src/routes/orders.ts`"). Builders extend these shapes instead of inventing parallel ones.
 
 IDs and names:
-- `P07` is a phase: one user-visible outcome with 3–8 tasks. Its title is an outcome noun ("Email alerts").
+- `P07` is a phase: one user-visible outcome. Its title is an outcome noun ("Email alerts").
 - `P07-T03` is a task: one commit. Its title starts with a verb ("Add triage table"), and the commit subject is `P07-T03 Add triage table`.
-- `C1…` are spec items local to one plan. `D014` and `I05` are decisions and invariants.
+- `C1…` are requirements local to one plan. `D014` and `I05` are decisions and invariants.
 - Never letter, reuse, or renumber IDs. The only word for a piece of a phase is "task".
 
 Phase status, set by the planner in ROADMAP only: `planned → approved → built → done`, plus `dropped`. Progress is the plan's checkboxes. "Blocked" is a log entry, not a status.
 
-## Build mode
+Plans with `Format: 3` follow this version. Plans without it are v2 plans with task cards; they keep their rules until converted ([building.md](references/building.md), [adopt.md](references/adopt.md)).
 
-You implement an approved plan exactly. You do not redesign it.
+## Approval
 
-1. **Read** AGENTS.md, the plan, and the **last entry** of the phase's log. If that entry says `blocked`, stop and report the question; the planner must answer it first.
-2. **Pick** the first unchecked task whose number is inside the plan's `Approved:` line. If there is none, report that and stop.
-3. **Baseline:** if the log file (`docs/logs/` with the same filename as the plan) doesn't exist or has no `Baseline` entry, create it, run the Full check from AGENTS.md, and record the result and any pre-existing failures. If `git status` shows uncommitted changes in any file this phase lists, stop and ask.
-4. **Implement** only that task:
-   - Change only the paths in its `Files:` and `Test:` lines.
-   - Follow the Spec and contracts word for word: names, types, error behavior.
-   - Private helpers inside those files are fine. Reuse what "Builder context" and AGENTS.md "Where things live" name.
-   - Edit minimally. No renames, moves, reformatting, or rewriting whole files.
-   - Without a plan line saying so, never add an export, file, dependency, env var, config option, schema change, or public signature change. Never delete, skip, or weaken a test or check.
-5. **Stop** — write a `blocked` log entry with the question and options, leave the box unchecked, and report — when:
-   - a listed path or symbol is missing, or differs from what the plan says;
-   - the task needs a file that isn't listed;
-   - a test expectation contradicts the Spec, or you need a design choice the Spec doesn't make;
-   - `Check:` still fails after 3 fix attempts;
-   - a step needs the user (manual check, credentials, live account, payment).
-6. **Finish the task:**
-   - Run its `Check:`, then the Fast check.
-   - Tick its box, and append a log entry of at most 8 lines (Changed / Check / Notes).
-   - If AGENTS.md says `Commits: per-task`, stage only the task's files plus the plan and log by explicit path (never `git add -A` or `.`), and commit as `P07-T03 <title>`.
-7. **Continue** to the next task only if the user asked for a range or the whole phase. Always stop after a `Spike:` task.
-8. **After the last approved task:**
-   - Run the Full check, the plan's Auto acceptance, and the Docs check.
-   - Append `Ready for review` and commit the log as `P07 Ready for review`.
-   - List the plan's Manual acceptance steps for the user. Don't mark them as passed.
-   - Report, and stop.
-9. **Never edit** plan text other than checkboxes. Never edit ROADMAP, ARCHITECTURE, DECISIONS, or AGENTS.md unless a card gives the exact text.
-
-Log entry formats (the Docs check parses these headings; the date is today's):
-
-```markdown
-# P07 log
-
-## Baseline · 2026-10-26
-Full check: `<command>` → pass. Pre-existing failures: none
-
-## P07-T03 · done · 2026-10-26
-Changed: `src/a.ts`, `src/a.test.ts`
-Check: `<command>` → pass
-Notes: none
-
-## P07-T04 · blocked · 2026-10-26
-Question: <what the plan doesn't answer, or how it differs from the code>
-Options: A) … B) … Recommend A because …
-
-## Ready for review · 2026-10-26
-Full check → pass. Auto acceptance → pass. Docs check → pass.
-```
-
-Run one builder per phase. Builders run in parallel only on phases whose `Files:` don't overlap, each in its own worktree.
+- Approval is explicit and names a phase or task range; the plan's `Approved:` line records it. A request to build an app does not approve a plan written afterwards.
+- Approval covers the implementation choices inside its scope. It never covers tasks outside the range, or changes to approved requirements, design decisions, contracts, or invariants.
 
 ## Direct changes
 
-An explicit user request touching at most 2 files, with no dependency, schema, or contract change, needs no plan or log:
+A change needs no plan or log when all of these hold: the user asked for it explicitly; the cause is clear; it changes no public contract, persisted format, dependency, service, or architecture; and the Fast check is enough to verify it.
+
 1. For a bug, reproduce it first.
-2. Make the change and run the Fast check.
+2. Make the change, fix docs and comments it makes stale, and run the Fast check.
 3. Commit as `fix: …` or `chore: …` if commits are on.
 
-Anything larger, or any bug whose cause is unclear, gets a plan (Plan mode, `Kind: fix`).
+Anything else gets a plan (Plan mode; `Kind: fix` for bugs).
 
 ## Lean code
 
-1. **One owner per concern.** Use the module AGENTS.md lists for config, logging, errors, DB access, API client, dates, validation, and shared types. Never write a second one.
-2. **Keep files under ~400 lines and functions under ~80.** Planners split oversized files before adding to them.
-3. **A new variant reuses the existing core.** Delete the old path in the same phase.
+1. **One owner per concern.** Before adding shared code, search AGENTS.md "Where things live" and the code. Add missing helpers to the owner. Never write a second one.
+2. **Size is a prompt, not a cap.** A file past ~400 lines or a function past ~80 asks whether it holds a second responsibility. Put a new responsibility in a new module. Never compress formatting to fit a number.
+3. **Extend the existing shape.** A new variant reuses the existing core and follows the Patterns exemplar. Delete the old path in the same phase.
 4. **No re-export shims or alias names inside an app.** Update the callers.
 5. **Validate at trust boundaries only** (env, request input, external APIs, model output, files), with the project's one schema library. Add a custom error class only when a caller catches it.
 6. **No interface, base class, or registry before two real implementations.** A test fake counts.
@@ -117,4 +77,3 @@ Anything larger, or any bug whose cause is unclear, gets a plan (Plan mode, `Kin
 - Preserve unrelated work. Never revert changes you didn't make.
 - Never claim a check passed unless you ran it. Record the actual command and result.
 - Never write secrets, tokens, personal data, or pasted command output into docs or logs.
-- Approval is explicit and names a phase or task range. A request to build an app does not approve a plan written afterwards.
