@@ -1,4 +1,4 @@
 interface:
   display_name: "Clean Dev"
-  short_description: "Foundations once, phase plans of requirements and seams, builders that own the code"
+  short_description: "Living specs and foundations, phase plans of requirements and seams, one commit per task, one review round"
   default_prompt: "Use $clean-dev to plan this application: write the foundation records, the roadmap, and the first phase, and ask for my approval before anything is built."

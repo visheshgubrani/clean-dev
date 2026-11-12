@@ -1,7 +1,7 @@
 # P01 Habit logging
 
 Kind: feature
-Approved: 2026-10-26 T01–T02
+Approved: 2026-10-26 all
 Depends on: none
 
 ## Goal
@@ -29,8 +29,8 @@ Test one file: `pnpm vitest run <file>`
 
 ## Tasks
 - [x] P01-T01 Add check-in table
-- [ ] P01-T02 Add check-in query
-- [ ] P01-T03 Add check-in route
+- [x] P01-T02 Add check-in query
+- [x] P01-T03 Add check-in route
 
 ### P01-T01 Add check-in table
 Implements: C1
